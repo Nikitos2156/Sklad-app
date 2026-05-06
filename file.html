@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Склад 61/2 🛞</title>
+    <style>
+        :root {
+            --primary: #007bff;
+            --danger: #dc3545;
+            --success: #28a745;
+            --bg-page: #f0f2f5;
+            --wall-gap: 8px; 
+        }
+
+        body { font-family: -apple-system, sans-serif; background: var(--bg-page); padding: 5px; margin: 0; touch-action: manipulation; overflow-x: hidden; }
+        .app-container { max-width: 100%; margin: 0 auto; background: white; padding: 10px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); min-height: 95vh; box-sizing: border-box; }
+
+        .main-header { text-align: center; font-size: 18px; font-weight: bold; margin: 10px 0; color: #333; }
+        
+        .zone-nav { display: flex; gap: 5px; margin-bottom: 10px; }
+        .btn-zone { flex: 1; padding: 12px; border: 2px solid var(--primary); border-radius: 10px; background: white; color: var(--primary); font-weight: bold; font-size: 11px; cursor: pointer; }
+        .btn-zone.active { background: var(--primary); color: white; }
+
+        .admin-panel { display: flex; gap: 5px; margin-bottom: 10px; }
+        .btn-admin { flex: 1; padding: 12px; border: none; border-radius: 8px; color: white; font-weight: bold; font-size: 10px; text-transform: uppercase; cursor: pointer; }
+        .btn-add { background: var(--success); }
+        .btn-del { background: var(--danger); }
+        .btn-cancel { background: #6c757d; }
+
+        .search-area { display: flex; gap: 5px; margin-bottom: 10px; }
+        input { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 10px; font-size: 14px; outline: none; box-sizing: border-box; }
+
+        #info-bar { text-align: center; margin-bottom: 8px; padding: 8px; border-radius: 8px; font-size: 11px; font-weight: bold; }
+        .mode-view { background: #e7f3ff; color: #0056b3; }
+        .mode-edit { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+
+        .warehouse-map { display: flex; justify-content: space-between; width: 100%; }
+        .row-container { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+        .wall { width: var(--wall-gap); background: #eee; flex-shrink: 0; margin: 0 1px; border-radius: 2px; }
+
+        .section-zero-layout {
+            display: grid;
+            grid-template-columns: 45px 1fr 1fr 1fr 1fr 45px;
+            grid-template-rows: 60px 100px 50px 40px;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .cell-0-0 { grid-column: 2 / 6; grid-row: 1; }
+        .cell-0-1 { grid-column: 1; grid-row: 1 / 4; }
+        .cell-0-6 { grid-column: 6; grid-row: 1 / 4; }
+        .cell-0-2 { grid-column: 2; grid-row: 3; }
+        .cell-0-3 { grid-column: 3; grid-row: 3; }
+        .cell-0-4 { grid-column: 4; grid-row: 3; }
+        .cell-0-5 { grid-column: 5; grid-row: 3; }
+
+        .cell-box {
+            background: #fff; border: 1px solid #ccc; border-radius: 4px;
+            font-size: 9px; font-weight: bold; color: #d9534f; 
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+        }
+
+        .main-cell { width: 100%; aspect-ratio: 1/1; margin-bottom: 4px; }
+        .row-label { height: 25px; background: #333; color: #fff; border-radius: 4px; font-size: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center; margin-top: 2px;}
+
+        .entrance-text { grid-column: 1 / 3; grid-row: 4; color: var(--danger); font-weight: bold; font-size: 16px; align-self: center; }
+
+        .cell-box.found { background: var(--danger) !important; color: white !important; transform: scale(1.05); box-shadow: 0 0 8px rgba(220,53,69,0.5); }
+        .cell-box.active-view { border: 2px solid var(--primary); background: #eef7ff; }
+
+        #resultsArea { margin-bottom: 10px; max-height: 200px; overflow-y: auto; }
+        .selection-card { padding: 10px; border: 1px solid #eee; border-radius: 8px; margin-bottom: 5px; background: #fff; font-size: 13px; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="main-header">Склад 61/2 🛞</div>
+
+    <div class="zone-nav">
+        <button id="navMain" class="btn-zone active" onclick="switchZone('main')">Ряды 1-8</button>
+        <button id="navZero" class="btn-zone" onclick="switchZone('zero')">Секция 0</button>
+    </div>
+
+    <div class="admin-panel">
+        <button class="btn-admin btn-add" onclick="setMode('add')">ДОБАВИТЬ</button>
+        <button class="btn-admin btn-del" onclick="setMode('del')">УДАЛИТЬ</button>
+        <button id="btnCancel" class="btn-admin btn-cancel" style="display:none;" onclick="setMode('search')">ОТМЕНА</button>
+    </div>
+
+    <div id="info-bar" class="mode-view">Загрузка данных...</div>
+
+    <div class="search-area">
+        <input type="text" id="q" placeholder="Поиск (trix, 26, 666)..." oninput="runSearch()">
+    </div>
+
+    <div id="resultsArea"></div>
+    <div id="mapContainer"></div>
+</div>
+
+<script>
+    // --- НАСТРОЙКИ ОБЛАКА ---
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwpUfSTdy-xaG2wezSoddGIr3CunBZSPe10QRzn3n-C9VQPI9mAPDfPDdAWGUEwdwjn/exec';
+    const CSV_URL = 'ВСТАВЬ_СЮДА_ССЫЛКУ_ИЗ_ПУНКТА_ОПУБЛИКОВАТЬ_В_ИНТЕРНЕТЕ'; 
+
+    // БАЗА ДАННЫХ ДЛЯ ПЕРВОГО ЗАПУСКА (если таблица пуста)
+    const initialData = [
+        { id: "1-1", items: ["P1206 12 1/2x2 1/4 Hogger", "1171 10x1.75 Trix", "1111 27.5x3.0 hogger", "K816 26x2.10 kenda", "K935 700x45c kenda"] },
+        { id: "1-2", items: ["1013 24x1.95 hogger"] },
+        { id: "1-3", items: ["1198 20x2.40 hogger", "036 20x2.125 trix", "007 700x35C trix", "518 16x2.125 Chao Yang"] },
+        { id: "1-4", items: ["1098 24x2.125 Hogger", "309 24x2.125 Hogger", "5113 (107028) 24x1.95 Chao Yang"] },
+        { id: "1-5", items: ["1171 18x2.125 Hogger", "1282 700x38c Hogger", "1063 26x2.10 Hogger", "P1179 700x23C Hogger", "P1258 26x4.0 Hogger", "P1027 700x40c Hogger"] },
+        { id: "1-6", items: ["1063 20x2.10 Hogger", "177 29x2.35 Hogger", "1027 28x1.75 Hogger"] },
+        { id: "1-7", items: ["1025 24x2.35 Hogger", "177 29x2.10 Hogger", "666 24x2.35 Hogger", "P1226D 29x2.10 Hogger"] },
+        { id: "2-1", items: ["012 20x2.125 Trix", "025 29x2.125 Trix", "066 24x2.125 Trix"] },
+        { id: "2-2", items: ["597-2 28x1.75 (926014) Chao Yang"] },
+        { id: "2-3", items: ["1226 27.5x2.10 Hogger"] },
+        { id: "2-4", items: ["W2101 700x40c Hogger", "036D 29x2.125 Trix", "5207 27.5x2.10 (913003) Chao Yang"] },
+        { id: "2-5", items: ["5161 26x4.0 w108201 Chao Yang", "666 27.5x2.35 Hogger", "K1177 20x1.95 Kenda", "057 26x4.0 Trix"] },
+        { id: "2-6", items: ["057 24x4.0 Trix", "1171 20x1.95 Hogger", "5129 20x2.0 (405020) Chao Yang", "666 29x2.35 Hogger", "1013 26x1.95 Hogger"] },
+        { id: "2-7", items: ["P182 20x2.10 Hogger", "1198 20x2.30 Hogger", "177 27.5x2.10 Hogger"] },
+        { id: "3-1", items: ["056 26x2.10 trix", "1004 24x2.40 hogger", "1048 26x1.75 hogger", "518-2 14x2.125 chao yang"] },
+        { id: "3-2", items: ["010 28x1.75 trix"] },
+        { id: "3-3", items: ["036D 24x2.125 trix"] },
+        { id: "3-4", items: ["1282 700x38c hogger", "036D 29x2.125 trix", "5207 27.5x2.10 (913003) chao yang"] },
+        { id: "3-5", items: ["2109 700x35c hogger", "059 26x2.10 trix", "1054 700x28c hogger", "435 24x1 3/8 (207012) chao yang"] },
+        { id: "3-6", items: ["802 26x2.35 (030202) arisun", "5185 27.5x2.10 (109001) chao yang", "1013 26x1.96 hogger"] },
+        { id: "3-7", items: ["2015 26x1.75 hogger", "036 22x2.125 trix", "075 700x40c trix", "1075 26x3.00 hogger"] },
+        { id: "4-1", items: ["049 26x2.125 trix", "036 20x2.125 trix", "020 20x2.30 trix"] },
+        { id: "4-2", items: ["036D 27.5x2.125 trix", "036 26x2.125 trix"] },
+        { id: "4-3", items: ["1112 20x2.125 evolution", "5166 26x2.10 (108034) chao yang", "717 24x1-3/8 trix", "5176 27.5x3.0 (w113091) chao yang"] },
+        { id: "4-4", items: ["5129 26x2.25 (108050) chao yang", "5135 26x1.95 (108097) chao yang", "715 24x2.125 trix", "715 26x2.125 Trix"] },
+        { id: "4-5", items: ["1013 24x2.10 hogger", "1018 24x2.10 hogger", "025 26x2.125 trix", "074 27.5x2.125 trix"] },
+        { id: "4-6", items: ["605 26x1.75 (070406) arisun", "753 700x25c trix"] },
+        { id: "4-7", items: ["064 28x1.75 trix"] },
+        { id: "5-1", items: ["051 27.5x2.10 trix", "022 24x2.10 trix", "010 24x1.95 trix", "518 12 1/2x2 1/4 chao yang"] },
+        { id: "5-2", items: ["5161 26x2.10 (108067) chao yang"] },
+        { id: "5-3", items: ["518 24x1.95 (107012) chao yang", "5129 29x2.10 chao yang", "1155 24x2.35 evolution", "5176 27.5x3.0 (113091) chao yang"] },
+        { id: "5-4", items: ["715 26x2.125 trix"] },
+        { id: "5-5", items: ["5185 29x2.10 (112008) chao yang", "527 28x1.75 (926016) chao yang", "5183 24x3.0 chao yang"] },
+        { id: "5-6", items: ["173 26x1.75 hogger", "012 26x2.125 trix", "031 20x2.125 trix"] },
+        { id: "5-7", items: ["064 28x1.75 trix"] },
+        { id: "6-1", items: ["1136 27.5x2.125 evolution"] },
+        { id: "6-2", items: ["5129 24x2.10 (107044) chao yang", "5207 26x1.95 (908015) chao yang"] },
+        { id: "6-3", items: ["031 24x2.125 trix"] },
+        { id: "6-4", items: ["459 700x35c (911004) chao yang", "5183 20x3.0 chao yang"] },
+        { id: "6-5", items: ["5135 26x1.95 (108096) chao yang"] },
+        { id: "6-6", items: ["544 20x2.30 chao yang", "5185 26x1.95 (108068) chao yang", "032 20x2.125 trix"] },
+        { id: "6-7", items: ["5113 700x38c (911013) chao yang", "597-2 28x1.75 (926014) chao yang", "705 20x1.50 (080405) arisun"] },
+        { id: "7-1", items: ["1170 20x2.125 evolution"] },
+        { id: "7-2", items: ["5129 24x2.10 (107044) chao yang", "5207 26x1.95 (908015) chao yang"] },
+        { id: "7-3", items: ["5135 26x1.95 (108096) chao yang", "5128 700x28c (311013) chao yang"] },
+        { id: "7-4", items: ["562 26x2.35 (108044) chao yang", "5161 27.5x2.10 (113005) chao yang", "705 20x1 3/8 (080401) arisun"] },
+        { id: "7-5", items: ["5135 26x1.95 (108096) chao yang"] },
+        { id: "7-6", items: ["1134 27.5x2.35 evolution", "1134 29x2.35 evolution", "5185 26x2.10 (108095) chao yang"] },
+        { id: "7-7", items: ["5129 20x2.0 (405076) chao yang", "705 20x2.30 (080425) arisun", "584 20x2.30 (405037) chao yang"] },
+        { id: "8-1", items: ["5113 20x1.95 (205011) chao yang", "435 24x1 3/8 (207005) chao yang", "5176 29x3.0 (112071) chao yang"] },
+        { id: "8-2", items: ["705 700x35c (070508) arisun", "5120 26x2.10 (108029) chao yang", "602 700x38c (070210) arisun", "568 20x2.0 (405021) chao yang", "805 26x2.2 (010105) arisun", "601 700x45c (070131) arisun", "802 27.5x2.35 (030209) arisun", "480 700x32c (911037) chao yang"] },
+        { id: "8-3", items: ["813 29x2.35 (030610) arisun", "5128 700x25c (311008) chao yang", "705 27.5x2.2 (070522) arisun", "813 26x2.30 (030602) arisun", "802 27x2.10 (020205) arisun", "808 29x2.25 (030502) arisun", "705 700x25c (070513) arisun", "5134 26x2.25 chao yang"] },
+        { id: "8-4", items: ["806 26x2.3 (030402) arisun", "802 29x2.25 (030206) arisun", "501 700x33c (060101) arisun", "813 27.5x2.35 (030606) arisun", "807 29x2.3 (030302) arisun", "602 700x32c (070204) arisun", "803 29x2.1 (020108) arisun", "808 29x2.1 (010308) arisun", "810 26x1.90 (010402) arisun"] },
+        { id: "8-5", items: ["701 20x2.0 (080102) arisun", "803 29x2.35 (030105) arisun", "808 26x2.10 (010305) arisun", "5176 26x4.0 (108199) chao yang", "702 20x2.0 (080201) arisun", "601 700x40c (070114) arisun", "705 700x38c (070503) arisun", "802 26x2.35 (030202) arisun"] },
+        { id: "8-6", items: ["701 20x2.25 (080103) arisun", "802 26x2.25 (040101) arisun", "808 27.5x2.1 (010317) arisun", "603 26x1.50 (070306) arisun", "809 27.5x2.2 (010513) arisun", "809 29x2.2 (010508) arisun", "806 27.5x2.3 (030409) arisun", "5126 700x38c (211052) chao yang", "705 700x32c (070515) arisun"] },
+        { id: "8-7", items: ["801 29x2.0 (010208) arisun", "5224 700x35c (80105001) chao yang", "806 29x2.25 (030405) arisun", "801 27.5x2.0 (010211) arisun", "5129 27.5x2.10 chao yang", "5202 26x4.0 (108230) chao yang", "705 20x1.50 (080405) arisun", "518 20x2.125 chao yang", "803 27.5x2.1 (020111) arisun", "703 20x1.90 (080301) arisun"] }
+    ];
+
+    let db = [];
+    let mode = 'search';
+    let currentZone = 'main';
+
+    async function loadData() {
+        try {
+            document.getElementById('info-bar').innerText = "Обновление базы...";
+            const response = await fetch(CSV_URL);
+            if (!response.ok) throw new Error();
+            const text = await response.text();
+            
+            const lines = text.split('\n').filter(line => line.trim() !== "");
+            const newDb = [];
+            
+            for (let i = 1; i < lines.length; i++) {
+                const parts = lines[i].split(',');
+                if (parts.length >= 1) {
+                    const id = parts[0].replace(/"/g, '').trim();
+                    const itemsRaw = parts[1] ? parts[1].replace(/"/g, '').trim() : "";
+                    newDb.push({
+                        id: id,
+                        items: itemsRaw === "" ? [] : itemsRaw.split('|')
+                    });
+                }
+            }
+            db = newDb.length > 0 ? newDb : initialData;
+            document.getElementById('info-bar').innerText = "Нажмите на ячейку";
+            draw();
+        } catch (e) {
+            console.error("Ошибка загрузки. Использую локальные данные.");
+            db = initialData;
+            document.getElementById('info-bar').innerText = "ОФФЛАЙН РЕЖИМ";
+            draw();
+        }
+    }
+
+    async function saveToCloud(cellId, itemsArray) {
+        document.getElementById('info-bar').innerText = "Отправка в таблицу...";
+        try {
+            await fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: cellId, items: itemsArray })
+            });
+            setTimeout(loadData, 2000); 
+        } catch (e) {
+            alert("Ошибка сохранения.");
+            loadData();
+        }
+    }
+
+    function switchZone(zone) {
+        currentZone = zone;
+        document.getElementById('navMain').className = zone === 'main' ? 'btn-zone active' : 'btn-zone';
+        document.getElementById('navZero').className = zone === 'zero' ? 'btn-zone active' : 'btn-zone';
+        draw();
+    }
+
+    function draw() {
+        const container = document.getElementById('mapContainer');
+        container.innerHTML = '';
+        if (currentZone === 'main') {
+            const map = document.createElement('div');
+            map.className = 'warehouse-map';
+            for (let r = 1; r <= 8; r++) {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'row-container';
+                for (let m = 1; m <= 7; m++) {
+                    const id = `${r}-${m}`;
+                    const cell = document.createElement('div');
+                    cell.className = 'cell-box main-cell';
+                    cell.id = `c-${id}`;
+                    cell.innerText = id;
+                    cell.onclick = () => handleClick(id);
+                    rowDiv.appendChild(cell);
+                }
+                const lbl = document.createElement('div');
+                lbl.className = 'row-label'; lbl.innerText = r;
+                rowDiv.appendChild(lbl);
+                map.appendChild(rowDiv);
+                if (r === 1 || r === 3 || r === 5 || r === 7) {
+                    const wall = document.createElement('div');
+                    wall.className = 'wall'; map.appendChild(wall);
+                }
+            }
+            container.appendChild(map);
+        } else {
+            const zeroGrid = document.createElement('div');
+            zeroGrid.className = 'section-zero-layout';
+            ["0-0", "0-1", "0-6", "0-2", "0-3", "0-4", "0-5"].forEach(id => {
+                const cell = document.createElement('div');
+                cell.className = `cell-box cell-${id.replace('-','-')}`;
+                cell.id = `c-${id}`;
+                cell.innerText = id;
+                cell.onclick = () => handleClick(id);
+                zeroGrid.appendChild(cell);
+            });
+            const ent = document.createElement('div');
+            ent.className = 'entrance-text'; ent.innerText = 'ВХОД';
+            zeroGrid.appendChild(ent);
+            container.appendChild(zeroGrid);
+        }
+    }
+
+    function setMode(m) {
+        mode = m;
+        document.getElementById('btnCancel').style.display = m === 'search' ? 'none' : 'block';
+        document.getElementById('info-bar').innerText = m === 'add' ? 'КУДА ДОБАВИТЬ?' : (m === 'del' ? 'УДАЛИТЬ ТОВАР?' : 'Нажмите на ячейку');
+        document.getElementById('info-bar').className = m === 'search' ? 'mode-view' : 'mode-edit';
+        clearHighlights();
+    }
+
+    function handleClick(id) {
+        let cellData = db.find(d => d.id === id);
+        const area = document.getElementById('resultsArea');
+        clearHighlights();
+        const el = document.getElementById(`c-${id}`);
+        if(el) el.classList.add('active-view');
+
+        if (mode === 'search') {
+            area.innerHTML = !cellData || !cellData.items.length ? `<div class="selection-card">📦 ${id} пуста</div>` : `<b>Ячейка ${id}:</b>`;
+            if (cellData) cellData.items.forEach(i => {
+                const d = document.createElement('div'); d.className = 'selection-card'; d.innerText = i; area.appendChild(d);
+            });
+        } else if (mode === 'add') {
+            const val = prompt(`Добавить в ${id}:`);
+            if (val) {
+                if (!cellData) { cellData = { id: id, items: [] }; db.push(cellData); }
+                cellData.items.push(val);
+                saveToCloud(id, cellData.items); 
+                setMode('search');
+            }
+        } else if (mode === 'del') {
+            if (!cellData || !cellData.items.length) return;
+            area.innerHTML = `<b>Удалить из ${id}:</b>`;
+            cellData.items.forEach((item, idx) => {
+                const d = document.createElement('div'); d.className = 'selection-card'; d.style.color = 'red'; d.innerText = item;
+                d.onclick = () => { 
+                    if (confirm("Удалить?")) { 
+                        cellData.items.splice(idx, 1); 
+                        saveToCloud(id, cellData.items); 
+                        setMode('search'); 
+                    } 
+                };
+                area.appendChild(d);
+            });
+        }
+    }
+
+    function runSearch() {
+        const q = document.getElementById('q').value.toLowerCase().trim();
+        const area = document.getElementById('resultsArea');
+        clearHighlights();
+        area.innerHTML = '';
+        if (q.length < 2) return;
+        db.forEach(block => {
+            block.items.forEach(item => {
+                if (item.toLowerCase().includes(q)) {
+                    const d = document.createElement('div'); 
+                    d.className = 'selection-card';
+                    d.innerHTML = `📍 <b>${block.id}</b>: ${item}`;
+                    d.onclick = () => {
+                        switchZone(block.id.startsWith("0-") ? 'zero' : 'main');
+                        setTimeout(() => handleClick(block.id), 100);
+                    };
+                    area.appendChild(d);
+                    const cellOnMap = document.getElementById(`c-${block.id}`);
+                    if (cellOnMap) cellOnMap.classList.add('found');
+                }
+            });
+        });
+    }
+
+    function clearHighlights() {
+        document.querySelectorAll('.cell-box').forEach(b => { b.classList.remove('found', 'active-view'); });
+    }
+
+    loadData();
+</script>
+</body>
+</html>
